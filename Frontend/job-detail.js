@@ -1,3 +1,4 @@
+
 // Sabhi jobs ka alag-alag data aur exact salaries
 const jobsData = {
     "1": {
@@ -143,7 +144,6 @@ window.addEventListener('DOMContentLoaded', () => {
     const job = jobsData[jobId];
 
     if (job) {
-        // Page elements par dynamic data set karna
         document.getElementById('jobTitle').innerText = job.title;
         document.getElementById('companyName').innerText = job.company;
         document.getElementById('jobLocation').innerText = job.location;
@@ -151,58 +151,129 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('jobSalary').innerText = job.salary;
         document.getElementById('jobDesc').innerText = job.description;
 
-        // Responsibilities list populate karna
         const respUl = document.getElementById('jobResponsibilities');
+
         if (respUl) {
-            respUl.innerHTML = job.responsibilities.map(r => `<li>${r}</li>`).join('');
+            respUl.innerHTML = job.responsibilities
+                .map(r => `<li>${r}</li>`)
+                .join('');
         }
 
-        // Skills tags populate karna
         const skillsDiv = document.getElementById('jobSkills');
+
         if (skillsDiv) {
-            skillsDiv.innerHTML = job.skills.map(s => `<span style="background:#f1f5f9; padding:6px 12px; margin-right:8px; border-radius:6px; display:inline-block; font-size:14px;">${s}</span>`).join('');
+            skillsDiv.innerHTML = job.skills
+                .map(s => `<span style="background:#f1f5f9; padding:6px 12px; margin-right:8px; border-radius:6px; display:inline-block; font-size:14px;">${s}</span>`)
+                .join('');
         }
 
-        // About Company update karna
         document.getElementById('companyAbout').innerText = job.aboutCompany;
-        
-        // Modal ke andar job title set karna
+
         const modalTitle = document.getElementById('modalJobTitle');
-        if (modalTitle) modalTitle.innerText = job.title;
+
+        if (modalTitle) {
+            modalTitle.innerText = job.title;
+        }
     }
 });
 
-// Modal open/close functions (agar pehle se nahi hain toh)
+// Modal open
 function openApplyModal() {
     const modal = document.getElementById('applyModal');
-    if (modal) modal.style.display = 'block';
+
+    if (modal) {
+        modal.style.display = 'block';
+    }
 }
 
+// Modal close
 function closeApplyModal() {
     const modal = document.getElementById('applyModal');
-    if (modal) modal.style.display = 'none';
+
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }
 
-// Form submit hone par alert hatakar direct Candidate Dashboard par bhejna
-function submitApplication(event) {
+// Submit application to MongoDB
+async function submitApplication(event) {
     event.preventDefault();
 
+    const form = document.getElementById('applicationForm');
+    const submitBtn = form.querySelector('button[type="submit"]');
+
+    const applicantName = document.getElementById('applicantName').value.trim();
+    const applicantEmail = document.getElementById('applicantEmail').value.trim();
+    const applicantPhone = document.getElementById('applicantPhone').value.trim();
+    const applicantResume = document.getElementById('applicantResume').files[0];
+
     const jobTitle = document.getElementById('jobTitle').innerText;
-    const companyName = document.getElementById('companyName').innerText;
+    const company = document.getElementById('companyName').innerText;
 
-    // Nayi application ka data object
-    const newApplication = {
-        title: jobTitle,
-        company: companyName,
-        date: new Date().toLocaleDateString(),
-        status: "Under Review"
-    };
+    if (!applicantName || !applicantEmail || !applicantPhone || !applicantResume) {
+        alert('Please fill all details and upload your resume.');
+        return;
+    }
 
-    // LocalStorage mein save karna taaki dashboard par dikh sake
-    let applications = JSON.parse(localStorage.getItem('myApplications')) || [];
-    applications.push(newApplication);
-    localStorage.setItem('myApplications', JSON.stringify(applications));
+    const allowedExtensions = /\.(pdf|doc|docx)$/i;
 
-    // Seedha Candidate Dashboard par redirect karna
-    window.location.href = "candidate-dashboard.html";
+    if (!allowedExtensions.test(applicantResume.name)) {
+        alert('Please upload a PDF, DOC or DOCX resume.');
+        return;
+    }
+
+    if (applicantResume.size > 5 * 1024 * 1024) {
+        alert('Resume size must be 5 MB or less.');
+        return;
+    }
+
+    const formData = new FormData();
+
+    formData.append('jobTitle', jobTitle);
+    formData.append('company', company);
+    formData.append('applicantName', applicantName);
+    formData.append('applicantEmail', applicantEmail);
+    formData.append('applicantPhone', applicantPhone);
+    formData.append('resume', applicantResume);
+
+    try {
+        submitBtn.disabled = true;
+        submitBtn.innerText = 'Submitting...';
+
+        const response = await fetch('http://localhost:5000/api/applications', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Application submission failed.');
+        }
+
+        const newApplication = {
+            _id: result.applicationId,
+            title: jobTitle,
+            company: company,
+            date: new Date().toLocaleDateString(),
+            status: 'Under Review'
+        };
+
+        let applications = JSON.parse(localStorage.getItem('myApplications')) || [];
+
+        applications.push(newApplication);
+
+        localStorage.setItem('myApplications', JSON.stringify(applications));
+
+        alert('Application submitted successfully!');
+
+        window.location.href = 'candidate-dashboard.html';
+
+    } catch (error) {
+        console.error('Application Error:', error);
+        alert(error.message || 'Unable to submit application. Please try again.');
+
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Submit Application';
+    }
 }
